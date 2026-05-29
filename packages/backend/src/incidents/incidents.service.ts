@@ -154,10 +154,19 @@ export class IncidentsService {
   }
 
   private mapToDto(incident: any): IncidentDto {
-    const toISOString = (date: any) => {
+    const toNullableISOString = (date: any): string | null => {
       if (!date) return null;
-      if (typeof date === 'string') return date;
+      if (typeof date === "string") return date;
       return date instanceof Date ? date.toISOString() : new Date(date).toISOString();
+    };
+
+    const toRequiredISOString = (date: any): string => {
+      const value = toNullableISOString(date);
+      if (!value) {
+        throw new Error(`Incident ${incident.id} has an invalid required date field`);
+      }
+
+      return value;
     };
 
     if (!incident.createdByUser) {
@@ -172,20 +181,20 @@ export class IncidentsService {
       severity: incident.severity,
       serviceAffected: incident.serviceAffected,
       environment: incident.environment,
-      startTime: toISOString(incident.startTime),
-      endTime: toISOString(incident.endTime),
+      startTime: toRequiredISOString(incident.startTime),
+      endTime: toNullableISOString(incident.endTime),
       isOngoing: incident.isOngoing,
       durationMinutes: incident.durationMinutes,
       usersAffected: incident.usersAffected,
       revenueImpact: incident.revenueImpact,
-      createdAt: toISOString(incident.createdAt),
-      updatedAt: toISOString(incident.updatedAt),
+      createdAt: toRequiredISOString(incident.createdAt),
+      updatedAt: toRequiredISOString(incident.updatedAt),
       createdBy: {
         id: incident.createdByUser.id,
         email: incident.createdByUser.email,
         name: incident.createdByUser.name,
         role: incident.createdByUser.role,
-        createdAt: toISOString(incident.createdByUser.createdAt),
+        createdAt: toRequiredISOString(incident.createdByUser.createdAt),
       },
       status_label: incident.status,
       severity_label: incident.severity,

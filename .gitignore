@@ -56,3 +56,6 @@ minio_data/
 Dockerfile
 docker-compose.override.yml
 Dont upload/
+
+# Documentation
+*.md
