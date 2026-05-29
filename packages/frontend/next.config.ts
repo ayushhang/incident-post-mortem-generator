@@ -6,7 +6,7 @@ const config: NextConfig = {
   experimental: {
     taint: true,
   },
-  headers: async () => {
+  headers: () => {
     return [
       {
         source: "/(.*)",

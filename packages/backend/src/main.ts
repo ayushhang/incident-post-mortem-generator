@@ -58,4 +58,4 @@ async function bootstrap() {
   logger.log(`📚 API documentation: http://localhost:${port}/api/docs`);
 }
 
-bootstrap();
+void bootstrap();

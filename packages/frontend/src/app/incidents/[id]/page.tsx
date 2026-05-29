@@ -16,7 +16,7 @@ export default function IncidentDetail() {
   );
 
   useEffect(() => {
-    fetchIncident();
+    void fetchIncident();
   }, [incidentId]);
 
   async function fetchIncident() {

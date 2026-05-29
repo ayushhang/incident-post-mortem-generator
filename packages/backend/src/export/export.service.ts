@@ -130,9 +130,6 @@ ${doc.slaNote || "N/A"}
   async exportPDF(incidentId: string): Promise<Buffer> {
     const markdown = await this.exportMarkdown(incidentId);
 
-    // Simple HTML-based PDF generation
-    const html = this.markdownToHtml(markdown);
-
     // Note: For production, integrate with a PDF service like:
     // - Puppeteer (headless Chrome)
     // - wkhtmltopdf

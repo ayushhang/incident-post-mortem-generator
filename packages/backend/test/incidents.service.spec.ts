@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { IncidentsService } from "./incidents.service";
-import { PrismaService } from "../common/prisma/prisma.service";
+import { IncidentsService } from "../src/incidents/incidents.service";
+import { PrismaService } from "../src/common/prisma/prisma.service";
 import { NotFoundException, ForbiddenException } from "@nestjs/common";
 import { IncidentSeverity, UserRole } from "@incidents/shared";
 

@@ -6,7 +6,6 @@ import {
   IncidentListRequest,
   IncidentListResponse,
   IncidentDto,
-  IncidentStatus,
   UserRole,
 } from "@incidents/shared";
 
@@ -42,7 +41,7 @@ export class IncidentsService {
 
   async findAll(
     filters: IncidentListRequest,
-    userRole: UserRole
+    _userRole: any
   ): Promise<IncidentListResponse> {
     const skip = (filters.page - 1) * filters.limit;
 

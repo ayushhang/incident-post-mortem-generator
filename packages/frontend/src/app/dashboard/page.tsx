@@ -20,7 +20,7 @@ export default function Dashboard() {
   const [filter, setFilter] = useState<string>("ALL");
 
   useEffect(() => {
-    fetchIncidents();
+    void fetchIncidents();
   }, [filter]);
 
   async function fetchIncidents() {

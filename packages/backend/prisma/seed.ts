@@ -1,4 +1,5 @@
 import { PrismaClient, IncidentSeverity, IncidentStatus } from "@prisma/client";
+import * as bcrypt from "bcrypt";
 
 const prisma = new PrismaClient();
 
@@ -6,7 +7,7 @@ async function main() {
   console.log("🌱 Seeding database...");
 
   // Create sample incidents
-  const incident1 = await prisma.incident.create({
+  await prisma.incident.create({
     data: {
       title: "API Service Outage - Database Connection Pool Exhaustion",
       description:
@@ -28,7 +29,7 @@ async function main() {
     },
   });
 
-  const incident2 = await prisma.incident.create({
+  await prisma.incident.create({
     data: {
       title: "Memory Leak in Cache Layer",
       description:
@@ -55,7 +56,6 @@ async function main() {
   });
 
   if (!user) {
-    const bcrypt = require("bcrypt");
     const hashedPassword = await bcrypt.hash("ChangeMe123!", 10);
 
     await prisma.user.create({
@@ -142,6 +142,6 @@ main()
     console.error(e);
     process.exit(1);
   })
-  .finally(async () => {
-    await prisma.$disconnect();
+  .finally(() => {
+    void prisma.$disconnect();
   });

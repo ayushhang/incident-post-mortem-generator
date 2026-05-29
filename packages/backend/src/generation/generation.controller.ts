@@ -25,9 +25,9 @@ export class GenerationController {
 
   @Patch()
   @ApiOperation({ summary: "Update post-mortem" })
-  async updatePostmortem(
-    @Param("incidentId") incidentId: string,
-    @Body() input: UpdatePostmortemRequest
+  updatePostmortem(
+    @Param("_incidentId") _incidentId: string,
+    @Body() _input: UpdatePostmortemRequest
   ) {
     // TODO: Implement update logic
     return { success: true };
