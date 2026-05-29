@@ -1,0 +1,378 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite-compatible schema for local dev. Enums have been replaced with string fields.
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String?
+  password  String
+  role      String     @default("VIEWER")
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime  @updatedAt
+
+  incidents        Incident[]
+  actionItems      ActionItem[]
+  auditLogs        AuditLog[]
+  notificationSettings NotificationSetting[]
+
+  @@index([email])
+}
+
+model Incident {
+  id              String   @id @default(cuid())
+  title           String
+  description     String?
+  status          String   @default("DRAFT")
+  severity        String   @default("MEDIUM")
+
+  serviceAffected String?
+  environment     String?
+  startTime       DateTime
+  endTime         DateTime?
+  isOngoing       Boolean  @default(false)
+  durationMinutes Int?
+  usersAffected   Int?
+  revenueImpact   Float?
+  regionsAffected String?
+  internalTeams   String?
+  slaTarget       Int?
+
+  createdBy       String
+  createdByUser   User     @relation(fields: [createdBy], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  sources          IncidentSource[]
+  timeline         TimelineEvent[]
+  postmortem       PostmortemDocument?
+  impactAssessment ImpactAssessment?
+  revisions        DocumentRevision[]
+  actionItems      ActionItem[]
+  conflicts        TimelineConflict[]
+  similarLinks     SimilarIncidentLink[]
+  similarFromLinks SimilarIncidentLink[] @relation("similar")
+  auditLogs        AuditLog[]
+
+  @@index([createdBy])
+  @@index([status])
+  @@index([severity])
+  @@index([startTime])
+}
+
+model IncidentSource {
+  id            String   @id @default(cuid())
+  incidentId    String
+  incident      Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  sourceType    String
+  content       String
+  fileName      String?
+  uploadedAt    DateTime @default(now())
+
+  @@index([incidentId])
+}
+
+model TimelineEvent {
+  id              String   @id @default(cuid())
+  incidentId      String
+  incident        Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  timestamp       DateTime
+  canonicalTime   DateTime
+  description     String
+  classification  String
+  sourceReference String?
+  extractedBy     String?
+  confidence      Float    @default(1.0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  conflictsAsEvent1 TimelineConflict[] @relation("conflict_event1")
+  conflictsAsEvent2 TimelineConflict[] @relation("conflict_event2")
+
+  @@index([incidentId])
+  @@index([timestamp])
+  @@index([classification])
+}
+
+model TimelineConflict {
+  id          String   @id @default(cuid())
+  incidentId  String
+  incident    Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  event1Id    String
+  event1      TimelineEvent @relation("conflict_event1", fields: [event1Id], references: [id])
+  event2Id    String
+  event2      TimelineEvent @relation("conflict_event2", fields: [event2Id], references: [id])
+
+  description String
+  resolved    Boolean  @default(false)
+  resolution  String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([incidentId])
+  @@unique([event1Id, event2Id])
+}
+
+model ImpactAssessment {
+  id            String   @id @default(cuid())
+  incidentId    String   @unique
+  incident      Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  mttd          Int?
+  mtte          Int?
+  mttr          Int?
+  totalDuration Int?
+  timeToComm    Int?
+
+  usersImpacted Int?
+  servicesDown  String?
+  revenueImpact Float?
+
+  slaBreached   Boolean  @default(false)
+  breachDetails String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([incidentId])
+}
+
+model PostmortemDocument {
+  id            String   @id @default(cuid())
+  incidentId    String   @unique
+  incident      Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  executiveSummary String?
+  metadata          String?
+  impactAssessment  String?
+  timeline          String?
+  rootCauseAnalysis String?
+  contributingFactors String?
+  whyAnalysis       String?
+  whatWentWell      String?
+  whatCouldImprove  String?
+  correctiveActions String?
+  ownership         String?
+  confidence        String?
+  openQuestions     String?
+  blamelessReview   String?
+  slaNote           String?
+
+  generatedBy       String
+  generatedAt       DateTime @default(now())
+  editedAt          DateTime?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  revisions         DocumentRevision[]
+  validationResults QualityGateResult[]
+
+  @@index([incidentId])
+}
+
+model DocumentRevision {
+  id          String   @id @default(cuid())
+  incidentId  String
+  incident    Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  postmortemId String
+  postmortem   PostmortemDocument @relation(fields: [postmortemId], references: [id], onDelete: Cascade)
+
+  content     String
+  changeNotes String?
+
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  @@index([incidentId])
+  @@index([postmortemId])
+}
+
+model QualityGateResult {
+  id            String   @id @default(cuid())
+  postmortemId  String
+  postmortem    PostmortemDocument @relation(fields: [postmortemId], references: [id], onDelete: Cascade)
+
+  checkType     String
+  passed        Boolean
+  severity      String   @default("WARNING")
+  message       String
+  suggestions   String?
+
+  createdAt     DateTime @default(now())
+
+  @@index([postmortemId])
+}
+
+model ActionItem {
+  id            String   @id @default(cuid())
+  incidentId    String
+  incident      Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  title         String
+  description   String?
+  status        String   @default("OPEN")
+  priority      String   @default("MEDIUM")
+
+  assignedTo    String?
+  assignedUser  User?    @relation(fields: [assignedTo], references: [id])
+
+  dueDate       DateTime?
+  completedAt   DateTime?
+
+  ticketUrl     String?
+  prUrl         String?
+
+  extractedFrom String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  updates       ActionItemUpdate[]
+
+  @@index([incidentId])
+  @@index([status])
+  @@index([assignedTo])
+}
+
+model ActionItemUpdate {
+  id          String   @id @default(cuid())
+  actionItemId String
+  actionItem  ActionItem @relation(fields: [actionItemId], references: [id], onDelete: Cascade)
+
+  previousStatus String
+  newStatus      String
+  notes          String?
+
+  updatedBy   String
+  updatedAt   DateTime @default(now())
+
+  @@index([actionItemId])
+}
+
+model SimilarIncidentLink {
+  id              String   @id @default(cuid())
+  incidentId      String
+  incident        Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+
+  similarId       String
+  similarIncident Incident @relation("similar", fields: [similarId], references: [id], onDelete: Cascade)
+
+  similarity      Float
+  sharedRootCause Boolean  @default(false)
+  comparisonNote  String?
+
+  createdAt       DateTime @default(now())
+
+  @@index([incidentId])
+  @@index([similarity])
+  @@unique([incidentId, similarId])
+}
+
+model PatternAnalytics {
+  id          String   @id @default(cuid())
+
+  rootCause   String
+  frequency   Int      @default(1)
+  incidentIds String
+  severity    String   @default("MEDIUM")
+
+  firstSeen   DateTime @default(now())
+  lastSeen    DateTime @updatedAt
+
+  recommendations String?
+
+  @@index([frequency])
+}
+
+model NotificationSetting {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  channelType String
+  channelId   String
+
+  enabled   Boolean  @default(true)
+  events    String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, channelType, channelId])
+  @@index([userId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  incidentId  String?
+  incident    Incident? @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  action      String
+  entityType  String
+  entityId    String
+
+  changes     String?
+  ipAddress   String?
+  userAgent   String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([incidentId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model SLAConfiguration {
+  id        String   @id @default(cuid())
+
+  severity  String   @unique
+
+  targetMTTD Int
+  targetMTTE Int
+  targetMTTR Int
+
+  warningThreshold Float @default(0.8)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdminConfiguration {
+  id    String @id @default(cuid())
+
+  key   String @unique
+  value String
+
+  updatedAt DateTime @updatedAt
+}
+
+model SampleIncidentPackage {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+
+  timelineNotes String?
+  logs          String?
+  slackExport   String?
+  alertHistory  String?
+
+  createdAt   DateTime @default(now())
+}
