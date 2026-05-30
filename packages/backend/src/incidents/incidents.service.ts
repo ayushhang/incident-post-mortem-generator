@@ -168,10 +168,6 @@ export class IncidentsService {
       return value;
     };
 
-    if (!incident.createdByUser) {
-      throw new Error(`Incident ${incident.id} has no associated user`);
-    }
-
     return {
       id: incident.id,
       title: incident.title,
@@ -188,12 +184,18 @@ export class IncidentsService {
       revenueImpact: incident.revenueImpact,
       createdAt: toRequiredISOString(incident.createdAt),
       updatedAt: toRequiredISOString(incident.updatedAt),
-      createdBy: {
+      createdBy: incident.createdByUser ? {
         id: incident.createdByUser.id,
         email: incident.createdByUser.email,
         name: incident.createdByUser.name,
         role: incident.createdByUser.role,
         createdAt: toRequiredISOString(incident.createdByUser.createdAt),
+      } : {
+        id: "system",
+        email: "system@incident.local",
+        name: "System",
+        role: "ADMIN",
+        createdAt: toRequiredISOString(incident.createdAt),
       },
       status_label: incident.status,
       severity_label: incident.severity,

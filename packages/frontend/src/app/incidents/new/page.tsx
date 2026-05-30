@@ -3,9 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+interface FormError {
+  field?: string;
+  message: string;
+}
+
 export default function CreateIncident() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<FormError | null>(null);
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -20,9 +26,14 @@ export default function CreateIncident() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setError(null);
     setLoading(true);
 
     try {
+      if (!formData.title.trim()) {
+        throw new Error("Incident title is required");
+      }
+
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/incidents`,
         {
@@ -48,188 +59,283 @@ export default function CreateIncident() {
         const data = await response.json();
         router.push(`/incidents/${data.id}`);
       } else {
-        alert("Failed to create incident");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || `Failed to create incident (${response.status})`
+        );
       }
-    } catch (error) {
-      console.error("Error:", error);
-      alert("Error creating incident");
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "An error occurred";
+      console.error("Error creating incident:", err);
+      setError({ message: errorMessage });
     } finally {
       setLoading(false);
     }
   }
 
+  const severityOptions = [
+    { value: "CRITICAL", label: "🔴 Critical", color: "bg-red-500/10 border-red-500" },
+    { value: "HIGH", label: "🟠 High", color: "bg-orange-500/10 border-orange-500" },
+    { value: "MEDIUM", label: "🟡 Medium", color: "bg-yellow-500/10 border-yellow-500" },
+    { value: "LOW", label: "🟢 Low", color: "bg-green-500/10 border-green-500" },
+  ];
+
+  const environmentOptions = [
+    { value: "production", label: "🔒 Production" },
+    { value: "staging", label: "🧪 Staging" },
+    { value: "development", label: "💻 Development" },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-8">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-3xl font-bold text-white mb-8">Create New Incident</h1>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
+      <div className="max-w-3xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-12 h-12 rounded-lg bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
+              <span className="text-2xl">⚠️</span>
+            </div>
+            <h1 className="text-4xl font-bold text-white">Report Incident</h1>
+          </div>
+          <p className="text-slate-400 ml-15">
+            Document the incident details to generate comprehensive post-mortem reports
+          </p>
+        </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-slate-800 rounded-lg shadow-xl p-8 space-y-6"
-        >
-          {/* Title */}
-          <div>
-            <label className="block text-white font-semibold mb-2">
-              Incident Title *
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.title}
-              onChange={(e) =>
-                setFormData({ ...formData, title: e.target.value })
-              }
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:border-blue-500"
-              placeholder="e.g., API Database Connection Pool Exhaustion"
-            />
+        {/* Error Alert */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/50 rounded-lg">
+            <p className="text-red-200 font-medium">❌ {error.message}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Basic Information Card */}
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 backdrop-blur">
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <span>📋</span> Basic Information
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
+                  Incident Title <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.title}
+                  onChange={(e) =>
+                    setFormData({ ...formData, title: e.target.value })
+                  }
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                  placeholder="e.g., Database Connection Pool Exhaustion"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition h-28 resize-none"
+                  placeholder="Provide detailed information about what happened..."
+                />
+              </div>
+            </div>
           </div>
 
-          {/* Description */}
-          <div>
-            <label className="block text-white font-semibold mb-2">
-              Description
-            </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
-              }
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:border-blue-500 h-24"
-              placeholder="Brief description of the incident..."
-            />
+          {/* Severity & Environment Card */}
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 backdrop-blur">
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <span>🎯</span> Severity & Environment
+            </h2>
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-3">
+                  Severity <span className="text-red-400">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {severityOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() =>
+                        setFormData({ ...formData, severity: opt.value })
+                      }
+                      className={`p-3 rounded-lg border-2 transition font-semibold text-sm ${
+                        formData.severity === opt.value
+                          ? `${opt.color} border-current`
+                          : "bg-slate-700/30 border-slate-600 text-slate-300 hover:bg-slate-700/50"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-3">
+                  Environment
+                </label>
+                <div className="space-y-2">
+                  {environmentOptions.map((opt) => (
+                    <label
+                      key={opt.value}
+                      className="flex items-center p-3 bg-slate-700/30 border border-slate-600 rounded-lg cursor-pointer hover:bg-slate-700/50 transition"
+                    >
+                      <input
+                        type="radio"
+                        name="environment"
+                        value={opt.value}
+                        checked={formData.environment === opt.value}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            environment: e.target.value,
+                          })
+                        }
+                        className="w-4 h-4 mr-3"
+                      />
+                      <span className="text-slate-300 font-medium">
+                        {opt.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Severity */}
-          <div>
-            <label className="block text-white font-semibold mb-2">
-              Severity *
-            </label>
-            <select
-              value={formData.severity}
-              onChange={(e) =>
-                setFormData({ ...formData, severity: e.target.value })
-              }
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:border-blue-500"
-            >
-              <option>CRITICAL</option>
-              <option>HIGH</option>
-              <option>MEDIUM</option>
-              <option>LOW</option>
-            </select>
-          </div>
+          {/* Service & Timing Card */}
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 backdrop-blur">
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <span>⏱️</span> Service & Timeline
+            </h2>
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
+                  Service Affected
+                </label>
+                <input
+                  type="text"
+                  value={formData.serviceAffected}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      serviceAffected: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                  placeholder="e.g., API, Database, Cache"
+                />
+              </div>
 
-          {/* Service Affected */}
-          <div>
-            <label className="block text-white font-semibold mb-2">
-              Service Affected
-            </label>
-            <input
-              type="text"
-              value={formData.serviceAffected}
-              onChange={(e) =>
-                setFormData({ ...formData, serviceAffected: e.target.value })
-              }
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:border-blue-500"
-              placeholder="e.g., API, Database, Payment Service"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
+                  Start Time <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.startTime}
+                  onChange={(e) =>
+                    setFormData({ ...formData, startTime: e.target.value })
+                  }
+                  className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                />
+              </div>
+            </div>
 
-          {/* Environment */}
-          <div>
-            <label className="block text-white font-semibold mb-2">
-              Environment
-            </label>
-            <select
-              value={formData.environment}
-              onChange={(e) =>
-                setFormData({ ...formData, environment: e.target.value })
-              }
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:border-blue-500"
-            >
-              <option>production</option>
-              <option>staging</option>
-              <option>development</option>
-            </select>
-          </div>
-
-          {/* Start Time */}
-          <div>
-            <label className="block text-white font-semibold mb-2">
-              Start Time *
-            </label>
-            <input
-              type="date"
-              required
-              value={formData.startTime}
-              onChange={(e) =>
-                setFormData({ ...formData, startTime: e.target.value })
-              }
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:border-blue-500"
-            />
-          </div>
-
-          {/* Is Ongoing */}
-          <div>
-            <label className="flex items-center text-white font-semibold">
+            <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg flex items-center gap-3">
               <input
                 type="checkbox"
                 checked={formData.isOngoing}
                 onChange={(e) =>
                   setFormData({ ...formData, isOngoing: e.target.checked })
                 }
-                className="w-4 h-4 mr-3 bg-slate-700 border border-slate-600 rounded focus:ring-2 focus:ring-blue-500"
+                className="w-4 h-4 rounded"
               />
-              Ongoing Incident
-            </label>
+              <label className="text-sm font-medium text-slate-300 cursor-pointer">
+                🔴 This incident is still ongoing
+              </label>
+            </div>
           </div>
 
-          {/* Users Affected */}
-          <div>
-            <label className="block text-white font-semibold mb-2">
-              Users Affected
-            </label>
-            <input
-              type="number"
-              value={formData.usersAffected}
-              onChange={(e) =>
-                setFormData({ ...formData, usersAffected: e.target.value })
-              }
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:border-blue-500"
-              placeholder="0"
-            />
+          {/* Impact Card */}
+          <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 backdrop-blur">
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <span>📊</span> Impact Assessment
+            </h2>
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
+                  Users Affected
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={formData.usersAffected}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        usersAffected: e.target.value,
+                      })
+                    }
+                    className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                    placeholder="0"
+                    min="0"
+                  />
+                  <span className="absolute right-4 top-3 text-slate-400 text-sm">
+                    👥
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-300 mb-2">
+                  Revenue Impact
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-3 text-slate-400">$</span>
+                  <input
+                    type="number"
+                    value={formData.revenueImpact}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        revenueImpact: e.target.value,
+                      })
+                    }
+                    className="w-full pl-8 pr-4 py-3 bg-slate-700/50 border border-slate-600 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                    placeholder="0.00"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Revenue Impact */}
-          <div>
-            <label className="block text-white font-semibold mb-2">
-              Revenue Impact ($)
-            </label>
-            <input
-              type="number"
-              value={formData.revenueImpact}
-              onChange={(e) =>
-                setFormData({ ...formData, revenueImpact: e.target.value })
-              }
-              className="w-full px-4 py-2 bg-slate-700 border border-slate-600 text-white rounded-lg focus:outline-none focus:border-blue-500"
-              placeholder="0.00"
-            />
-          </div>
-
-          {/* Submit Button */}
-          <div className="flex gap-4 pt-6">
+          {/* Action Buttons */}
+          <div className="flex gap-4 pt-4">
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white font-bold py-3 px-6 rounded-lg transition"
+              className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-600 disabled:to-slate-700 text-white font-bold py-3 px-6 rounded-lg transition transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
             >
-              {loading ? "Creating..." : "Create Incident"}
+              <span>{loading ? "📤 Creating..." : "✅ Create Incident"}</span>
             </button>
             <button
               type="button"
               onClick={() => router.back()}
               className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 px-6 rounded-lg transition"
             >
-              Cancel
+              ← Cancel
             </button>
           </div>
         </form>

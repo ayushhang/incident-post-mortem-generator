@@ -1,4 +1,4 @@
-import { Controller, UseGuards, Get, Param, Res } from "@nestjs/common";
+import { Controller, UseGuards, Get, Param, Res, Logger } from "@nestjs/common";
 import { AuthGuard } from "@nestjs/passport";
 import { ApiTags, ApiBearerAuth, ApiOperation } from "@nestjs/swagger";
 import { Response } from "express";
@@ -9,6 +9,8 @@ import { ExportService } from "./export.service";
 @UseGuards(AuthGuard("jwt"))
 @ApiBearerAuth()
 export class ExportController {
+  private readonly logger = new Logger(ExportController.name);
+
   constructor(private exportService: ExportService) {}
 
   @Get("markdown")
@@ -17,13 +19,28 @@ export class ExportController {
     @Param("incidentId") incidentId: string,
     @Res() res: Response
   ) {
-    const markdown = await this.exportService.exportMarkdown(incidentId);
-    res.setHeader("Content-Type", "text/markdown");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="postmortem-${incidentId}.md"`
-    );
-    res.send(markdown);
+    try {
+      this.logger.log(`Markdown export requested for incident: ${incidentId}`);
+      const markdown = await this.exportService.exportMarkdown(incidentId);
+
+      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="postmortem-${incidentId}.md"`
+      );
+      res.setHeader("Content-Length", Buffer.byteLength(markdown, "utf-8"));
+      res.send(markdown);
+
+      this.logger.log(
+        `Successfully exported markdown for incident: ${incidentId}`
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to export markdown for incident ${incidentId}:`,
+        error
+      );
+      throw error;
+    }
   }
 
   @Get("pdf")
@@ -32,12 +49,22 @@ export class ExportController {
     @Param("incidentId") incidentId: string,
     @Res() res: Response
   ) {
-    const pdf = await this.exportService.exportPDF(incidentId);
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="postmortem-${incidentId}.pdf"`
-    );
-    res.send(pdf);
+    try {
+      this.logger.log(`PDF export requested for incident: ${incidentId}`);
+      const pdf = await this.exportService.exportPDF(incidentId);
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="postmortem-${incidentId}.pdf"`
+      );
+      res.setHeader("Content-Length", pdf.length);
+      res.send(pdf);
+
+      this.logger.log(`Successfully exported PDF for incident: ${incidentId}`);
+    } catch (error) {
+      this.logger.error(`Failed to export PDF for incident ${incidentId}:`, error);
+      throw error;
+    }
   }
 }

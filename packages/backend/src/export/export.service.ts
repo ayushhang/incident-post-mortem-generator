@@ -1,166 +1,254 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+  Logger,
+} from "@nestjs/common";
 import { PrismaService } from "../common/prisma/prisma.service";
 
 @Injectable()
 export class ExportService {
+  private readonly logger = new Logger(ExportService.name);
+
   constructor(private prisma: PrismaService) {}
 
   async exportMarkdown(incidentId: string): Promise<string> {
-    const incident = await this.prisma.incident.findUnique({
-      where: { id: incidentId },
-      include: { postmortem: true, createdByUser: true },
-    });
+    try {
+      this.logger.log(`Exporting markdown for incident: ${incidentId}`);
 
-    if (!incident || !incident.postmortem) {
-      throw new NotFoundException("Incident or postmortem not found");
-    }
+      const incident = await this.prisma.incident.findUnique({
+        where: { id: incidentId },
+        include: { postmortem: true, createdByUser: true },
+      });
 
-    const doc = incident.postmortem;
+      if (!incident) {
+        this.logger.error(`Incident not found: ${incidentId}`);
+        throw new NotFoundException("Incident not found");
+      }
 
-    return `# Incident Post-Mortem: ${incident.title}
+      if (!incident.postmortem) {
+        this.logger.warn(
+          `No postmortem found for incident: ${incidentId}. Generating default markdown.`
+        );
+        return this.generateDefaultMarkdown(incident);
+      }
 
-**Date**: ${new Date(incident.startTime).toISOString().split("T")[0]}
-**Severity**: ${incident.severity}
-**Status**: ${incident.status}
-**Duration**: ${incident.durationMinutes ? incident.durationMinutes + " minutes" : "Ongoing"}
-**Users Affected**: ${incident.usersAffected || "Unknown"}
-**Revenue Impact**: $${incident.revenueImpact || "Unknown"}
+      const doc = incident.postmortem;
+      const cleanText = (text: string | null | undefined): string => {
+        if (!text) return "";
+        return text
+          // Remove markdown formatting
+          .replace(/\*\*/g, "")                    // Remove bold **
+          .replace(/\*\*\*/g, "")                  // Remove bold italic ***
+          .replace(/\*\*\*\*/g, "")                // Remove extra bold
+          .replace(/\*/g, "")                      // Remove all asterisks
+          .replace(/#{1,6}\s+/g, "")               // Remove headers
+          .replace(/##\s+/g, "")                   // Remove ## headers
+          .replace(/###\s+/g, "")                  // Remove ### headers
+          .replace(/####\s+/g, "")                 // Remove #### headers
+          .replace(/\[.*?\]/g, "")                 // Remove brackets
+          .replace(/---/g, "")                     // Remove dividers
+          .replace(/\|.*?\|/g, "")                 // Remove table pipes
+          .replace(/\`\`\`/g, "")                  // Remove code blocks
+          .replace(/\`/g, "")                      // Remove inline code
+          .replace(/>\s+/g, "")                    // Remove blockquotes
+          .replace(/[*_~]/g, "")                   // Remove all formatting chars
+          .replace(/^#{1,6}\s+/gm, "")             // Remove markdown headers
+          .replace(/\n{3,}/g, "\n\n")              // Clean up extra newlines
+          .trim();
+      };
 
----
+      const markdown = `INCIDENT POST-MORTEM REPORT
+${"=".repeat(60)}
 
-## Executive Summary
-
-${doc.executiveSummary || "N/A"}
-
----
-
-## Incident Metadata
-
-- **Service**: ${incident.serviceAffected || "N/A"}
-- **Environment**: ${incident.environment || "N/A"}
-- **Regions Affected**: ${incident.regionsAffected || "N/A"}
-- **Teams Involved**: ${incident.internalTeams || "N/A"}
-- **Created By**: ${incident.createdByUser.name || incident.createdByUser.email}
-
----
-
-## Impact Assessment
-
-${doc.impactAssessment || "N/A"}
-
----
-
-## Timeline
-
-${doc.timeline || "N/A"}
-
----
-
-## Root Cause Analysis
-
-${doc.rootCauseAnalysis || "N/A"}
+INCIDENT: ${incident.title}
+Generated: ${new Date().toLocaleString()}
 
 ---
 
-## Contributing Factors
-
-${doc.contributingFactors || "N/A"}
-
----
-
-## Five Whys Analysis
-
-${doc.whyAnalysis || "N/A"}
-
----
-
-## What Went Well
-
-${doc.whatWentWell || "N/A"}
+KEY INFORMATION
+${"-".repeat(60)}
+Date: ${new Date(incident.startTime).toLocaleDateString()}
+Severity: ${incident.severity}
+Status: ${incident.status}
+Duration: ${incident.durationMinutes ? incident.durationMinutes + " minutes" : "Ongoing"}
+Users Affected: ${incident.usersAffected || "Unknown"}
+Revenue Impact: $${incident.revenueImpact || "Unknown"}
+Service: ${incident.serviceAffected || "N/A"}
+Environment: ${incident.environment || "N/A"}
+Created By: ${incident.createdByUser?.name || incident.createdByUser?.email || "System"}
 
 ---
 
-## What Could Be Improved
-
-${doc.whatCouldImprove || "N/A"}
-
----
-
-## Corrective and Preventive Actions
-
-${doc.correctiveActions || "N/A"}
+EXECUTIVE SUMMARY
+${"-".repeat(60)}
+${cleanText(doc.executiveSummary) || "No summary available"}
 
 ---
 
-## Ownership and Due Dates
-
-${doc.ownership || "N/A"}
-
----
-
-## Confidence and Evidence Strength
-
-${doc.confidence || "N/A"}
+ROOT CAUSE ANALYSIS
+${"-".repeat(60)}
+${cleanText(doc.rootCauseAnalysis) || "Analysis pending"}
 
 ---
 
-## Open Questions
-
-${doc.openQuestions || "N/A"}
-
----
-
-## Blameless Review
-
-${doc.blamelessReview || "All sections reviewed for blameless language"}
+CONTRIBUTING FACTORS
+${"-".repeat(60)}
+${cleanText(doc.contributingFactors) || "No contributing factors identified"}
 
 ---
 
-## SLA / SLO Assessment
-
-${doc.slaNote || "N/A"}
+FIVE WHYS ANALYSIS
+${"-".repeat(60)}
+${cleanText(doc.whyAnalysis) || "Analysis pending"}
 
 ---
 
-*Generated on ${new Date().toISOString()}*
-*This document contains sensitive incident information. Handle according to your organization's policies.*
+WHAT WENT WELL
+${"-".repeat(60)}
+${cleanText(doc.whatWentWell) || "Review pending"}
+
+---
+
+AREAS FOR IMPROVEMENT
+${"-".repeat(60)}
+${cleanText(doc.whatCouldImprove) || "Recommendations pending"}
+
+---
+
+CORRECTIVE AND PREVENTIVE ACTIONS
+${"-".repeat(60)}
+${cleanText(doc.correctiveActions) || "Actions to be determined"}
+
+---
+
+CONFIDENCE ASSESSMENT
+${"-".repeat(60)}
+${cleanText(doc.confidence) || "Assessment pending"}
+
+---
+
+OPEN QUESTIONS
+${"-".repeat(60)}
+${cleanText(doc.openQuestions) || "No outstanding questions"}
+
+---
+
+ADDITIONAL NOTES
+${"-".repeat(60)}
+Blameless Review: ${doc.blamelessReview || "Approved for blameless language"}
+SLA Assessment: ${doc.slaNote || "Not applicable"}
+
+---
+
+End of Report
+Generated: ${new Date().toISOString()}
+Confidential - Internal Use Only
 `;
+
+      this.logger.log(`Successfully exported markdown for incident: ${incidentId}`);
+      return markdown;
+    } catch (error) {
+      this.logger.error(`Failed to export markdown for incident ${incidentId}:`, error);
+
+      if (
+        error instanceof NotFoundException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        error instanceof Error
+          ? `Failed to export markdown: ${error.message}`
+          : "Failed to export markdown due to an unexpected error"
+      );
+    }
   }
 
   async exportPDF(incidentId: string): Promise<Buffer> {
-    const markdown = await this.exportMarkdown(incidentId);
+    try {
+      this.logger.log(`Exporting PDF for incident: ${incidentId}`);
 
-    // Note: For production, integrate with a PDF service like:
-    // - Puppeteer (headless Chrome)
-    // - wkhtmltopdf
-    // - AWS Lambda + wkhtmltopdf
-    // - External PDF service
+      const markdown = await this.exportMarkdown(incidentId);
 
-    return Buffer.from(
-      `PDF export not fully implemented. Use markdown export instead.\n\n${markdown}`
-    );
+      this.logger.warn(
+        `PDF export not fully implemented for incident ${incidentId}. Returning markdown as text.`
+      );
+
+      return Buffer.from(
+        `PDF export not fully implemented. Use markdown export instead.\n\n${markdown}`
+      );
+    } catch (error) {
+      this.logger.error(`Failed to export PDF for incident ${incidentId}:`, error);
+
+      if (
+        error instanceof NotFoundException ||
+        error instanceof InternalServerErrorException
+      ) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        error instanceof Error
+          ? `Failed to export PDF: ${error.message}`
+          : "Failed to export PDF due to an unexpected error"
+      );
+    }
   }
 
-  private markdownToHtml(markdown: string): string {
-    return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; margin: 40px; }
-    h1 { border-bottom: 3px solid #333; padding-bottom: 10px; }
-    h2 { margin-top: 30px; color: #333; }
-    table { border-collapse: collapse; width: 100%; margin: 20px 0; }
-    td, th { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { background-color: #f2f2f2; }
-    code { background-color: #f4f4f4; padding: 2px 4px; }
-  </style>
-</head>
-<body>
-  ${markdown.replace(/^## (.*)/gm, "<h2>$1</h2>").replace(/^# (.*)/gm, "<h1>$1</h1>")}
-</body>
-</html>
-    `;
+  private generateDefaultMarkdown(incident: any): string {
+    return `INCIDENT REPORT
+${"=".repeat(60)}
+
+INCIDENT: ${incident.title}
+Generated: ${new Date().toLocaleString()}
+
+---
+
+KEY INFORMATION
+${"-".repeat(60)}
+Date: ${new Date(incident.startTime).toLocaleDateString()}
+Severity: ${incident.severity}
+Status: ${incident.status}
+Duration: ${incident.durationMinutes ? incident.durationMinutes + " minutes" : "Ongoing"}
+Users Affected: ${incident.usersAffected || "Unknown"}
+Revenue Impact: $${incident.revenueImpact || "Unknown"}
+Service: ${incident.serviceAffected || "N/A"}
+Environment: ${incident.environment || "N/A"}
+Created By: ${incident.createdByUser?.name || incident.createdByUser?.email || "System"}
+
+---
+
+DESCRIPTION
+${"-".repeat(60)}
+${incident.description || "No description provided"}
+
+---
+
+INCIDENT DETAILS
+${"-".repeat(60)}
+Service Affected: ${incident.serviceAffected || "N/A"}
+Environment: ${incident.environment || "N/A"}
+Regions Affected: ${incident.regionsAffected || "N/A"}
+Teams Involved: ${incident.internalTeams || "N/A"}
+Created At: ${new Date(incident.createdAt).toLocaleString()}
+
+---
+
+STATUS
+${"-".repeat(60)}
+Post-Mortem Analysis: Not Yet Generated
+
+To generate a detailed post-mortem analysis with root cause analysis,
+contributing factors, and corrective actions, please complete the
+post-mortem generation in the application.
+
+---
+
+End of Report
+Generated: ${new Date().toISOString()}
+Confidential - Internal Use Only
+`;
   }
 }
