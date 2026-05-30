@@ -55,7 +55,6 @@ minio_data/
 .dockerignore
 Dockerfile
 docker-compose.override.yml
-Dont upload/
 
-# Documentation
-*.md
+
+
